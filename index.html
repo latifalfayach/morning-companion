@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#F0A840">
+<link rel="manifest" href="manifest.json">
+<title>Morning Companion</title>
+<style>
+  body { font-family: system-ui; background:#FAF7F2; color:#3B342C;
+         max-width: 420px; margin: 40px auto; padding: 0 20px; text-align:center; }
+  button { width:100%; padding:16px; margin:8px 0; border-radius:14px;
+           border:1px solid #EFE7DA; background:#fff; font-size:1.05rem; cursor:pointer; }
+  button.primary { background:#F0A840; border:none; color:#fff; font-weight:600; }
+  input { width:100%; padding:14px; border-radius:14px; border:1px solid #EFE7DA;
+          font-size:1.05rem; text-align:center; box-sizing:border-box; }
+  .hint { color:#8A7F72; font-size:.9rem; }
+</style>
+</head>
+<body>
+  <h1>☀️ Morning Companion</h1>
+  <p class="hint">Enter your anonymous participant ID (e.g. U001), enable reminders, then open the app.</p>
+  <input id="uid" placeholder="Your ID — e.g. U001">
+  <button class="primary" onclick="enablePush()">🔔 Enable gentle reminders</button>
+  <button onclick="location.href='https://YOUR-STREAMLIT-APP-URL'">🌅 Open the app</button>
+  <p id="status" class="hint"></p>
+  <p class="hint">📱 iPhone: tap Share → <b>Add to Home Screen</b> first, then enable reminders.</p>
+
+<script>
+const VAPID_PUBLIC_KEY = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAELsyGXGPseOxGwfEPkfZHdzJ8JwwO03iRAMDaducbZl8qwQfJKE0P2REWaGDz0lAVMW7Yc/klzHHsVocSgnrCHw==";
+const WEBHOOK_URL = "https://script.google.com/macros/s/AKfycbym5AIaUBdu1dQhiAFkf0kOj5Ovc0T1yQpHjrS5doK1Vgu5EcN7wVL8ZjgN57xm3tdr/exec";
+
+function b64ToUint8(b64) {
+  const pad = "=".repeat((4 - b64.length % 4) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+
+async function enablePush() {
+  const uid = document.getElementById("uid").value.trim().toUpperCase();
+  const status = document.getElementById("status");
+  if (!/^U\d{3}$/.test(uid)) { status.textContent = "Please enter a valid ID like U001"; return; }
+  if (!("serviceWorker" in navigator) || !("PushManager" in window)) {
+    status.textContent = "This browser doesn't support push reminders."; return;
+  }
+  const reg = await navigator.serviceWorker.register("sw.js");
+  const perm = await Notification.requestPermission();
+  if (perm !== "granted") { status.textContent = "Notifications were blocked — check browser settings."; return; }
+  const sub = await reg.pushManager.subscribe({
+    userVisibleOnly: true,
+    applicationServerKey: b64ToUint8(VAPID_PUBLIC_KEY)
+  });
+  await fetch(WEBHOOK_URL, { method: "POST", mode: "no-cors",
+    headers: {"Content-Type": "text/plain"},
+    body: JSON.stringify({ user_id: uid, subscription: sub.toJSON() }) });
+  status.textContent = "✅ Reminders enabled for " + uid + ". See you tomorrow morning!";
+}
+</script>
+</body>
+</html>
